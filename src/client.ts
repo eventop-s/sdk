@@ -16,7 +16,7 @@ export class EventopClient {
       const env = config.environment || this.detectEnvironment();
       this.baseUrl =
         env === 'devnet'
-          ? 'https://api-devnet.eventop.xyz'
+          ? 'https://eventop-server-app-production.up.railway.app'
           : 'https://api.eventop.xyz';
     }
   }
