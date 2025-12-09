@@ -1,6 +1,6 @@
 {
   "name": "@eventop/sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Official SDK for Eventop on-chain subscriptions",
   "keywords": ["solana", "subscriptions", "crypto", "payments"],
   "homepage": "https://github.com/eventop-s/sdk#readme",
