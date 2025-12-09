@@ -1,36 +1,45 @@
 {
- "name": "@eventop/sdk",
- "version": "1.0.1",
- "description": "Official SDK for Eventop on-chain subscriptions",
- "keywords": [
-  "solana",
-  "subscriptions",
-  "crypto",
-  "payments"
- ],
- "homepage": "https://github.com/eventop-s/sdk#readme",
- "bugs": {
-  "url": "https://github.com/eventop-s/sdk/issues"
- },
- "repository": {
-  "type": "git",
-  "url": "git+https://github.com/eventop-s/sdk.git"
- },
- "license": "MIT",
- "author": "Eventop",
- "type": "commonjs",
- "main": "dist/index.js",
- "types": "dist/index.d.ts",
- "scripts": {
-  "build": "tsc",
-  "prepublishOnly": "npm run build"
- },
- "dependencies": {
-  "node-fetch": "^2.6.7"
- },
- "devDependencies": {
-  "@types/node": "^18.0.0",
-  "@types/node-fetch": "^2.6.2",
-  "typescript": "^5.0.0"
- }
+  "name": "@eventop/sdk",
+  "version": "1.0.1",
+  "description": "Official SDK for Eventop on-chain subscriptions",
+  "keywords": ["solana", "subscriptions", "crypto", "payments"],
+  "homepage": "https://github.com/eventop-s/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/eventop-s/sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eventop-s/sdk.git"
+  },
+  "license": "MIT",
+  "author": "Eventop",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run build:cjs && npm run build:esm && npm run build:types",
+    "build:cjs": "tsc --project tsconfig.cjs.json",
+    "build:esm": "tsc --project tsconfig.esm.json",
+    "build:types": "tsc --project tsconfig.types.json",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/node-fetch": "^2.6.2",
+    "typescript": "^5.0.0"
+  }
 }
