@@ -3,7 +3,7 @@ import { ProviderFn, Theme, Position, AdvanceOn } from '../index.js';
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export interface ShepherdAIProviderProps {
+export interface EventopAIProviderProps {
   children:        ReactNode;
   /** AI provider function. Use providers.custom() in production. */
   provider:        ProviderFn;
@@ -19,23 +19,23 @@ export interface ShepherdAIProviderProps {
 
 /**
  * Root provider. Drop this once at the top of your app.
- * All ShepherdTarget and ShepherdStep components anywhere in the tree
+ * All EventopTarget and EventopStep components anywhere in the tree
  * register with this provider automatically.
  *
  * @example
- * <ShepherdAIProvider
+ * <EventopAIProvider
  *   provider={myServerFetcher}
  *   appName="My App"
  *   theme={{ mode: 'auto', tokens: { accent: '#6366f1' } }}
  * >
  *   <App />
- * </ShepherdAIProvider>
+ * </EventopAIProvider>
  */
-export const ShepherdAIProvider: FC<ShepherdAIProviderProps>;
+export const EventopAIProvider: FC<EventopAIProviderProps>;
 
-// ─── ShepherdTarget ───────────────────────────────────────────────────────────
+// ─── EventopTarget ───────────────────────────────────────────────────────────
 
-export interface ShepherdTargetProps {
+export interface EventopTargetProps {
   /** The component to wrap. Must be a single React element. */
   children:          ReactNode;
   /** Unique feature id */
@@ -61,32 +61,32 @@ export interface ShepherdTargetProps {
 }
 
 /**
- * Wraps any component and registers it as a ShepherdAI feature.
+ * Wraps any component and registers it as a EventopAI feature.
  * Registration happens at the CALL SITE — the wrapped component is unchanged.
  *
  * Works with any component: your own, shadcn, MUI, Radix, anything.
- * The wrapped component does not need to accept refs or know about ShepherdAI.
+ * The wrapped component does not need to accept refs or know about EventopAI.
  *
  * @example
  * // Same Button, different features in different parts of the app
- * <ShepherdTarget id="export" name="Export Design" description="Download as PNG or SVG">
+ * <EventopTarget id="export" name="Export Design" description="Download as PNG or SVG">
  *   <Button onClick={handleExport}>Export</Button>
- * </ShepherdTarget>
+ * </EventopTarget>
  *
- * <ShepherdTarget id="share" name="Share Document" description="Share with teammates">
+ * <EventopTarget id="share" name="Share Document" description="Share with teammates">
  *   <Button onClick={handleShare}>Share</Button>
- * </ShepherdTarget>
+ * </EventopTarget>
  */
-export const ShepherdTarget: FC<ShepherdTargetProps>;
+export const EventopTarget: FC<EventopTargetProps>;
 
-// ─── ShepherdStep ─────────────────────────────────────────────────────────────
+// ─── EventopStep ─────────────────────────────────────────────────────────────
 
-export interface ShepherdStepProps {
+export interface EventopStepProps {
   /** The component to wrap. Must be a single React element. */
   children:     ReactNode;
   /**
    * Feature id this step belongs to.
-   * Optional if inside a <ShepherdTarget> — inferred from scope context.
+   * Optional if inside a <EventopTarget> — inferred from scope context.
    */
   feature?:     string;
   /** Position in the flow sequence. 0-based. Required. */
@@ -97,11 +97,11 @@ export interface ShepherdStepProps {
    *
    * @example
    * // Step 1: open font picker
-   * <ShepherdStep feature="style-text" index={1}><FontPickerBtn /></ShepherdStep>
+   * <EventopStep feature="style-text" index={1}><FontPickerBtn /></EventopStep>
    *
    * // Sub-steps of step 1
-   * <ShepherdStep feature="style-text" index={0} parentStep={1}><FontFamily /></ShepherdStep>
-   * <ShepherdStep feature="style-text" index={1} parentStep={1}><FontWeight /></ShepherdStep>
+   * <EventopStep feature="style-text" index={0} parentStep={1}><FontFamily /></EventopStep>
+   * <EventopStep feature="style-text" index={1} parentStep={1}><FontWeight /></EventopStep>
    */
   parentStep?:  number;
   /** CSS selector to wait for before showing this step */
@@ -119,25 +119,25 @@ export interface ShepherdStepProps {
  *
  * The parent feature id comes from either:
  *  1. The `feature` prop (explicit — works anywhere in the tree)
- *  2. The nearest <ShepherdTarget> ancestor (implicit — via context)
+ *  2. The nearest <EventopTarget> ancestor (implicit — via context)
  *
  * @example
  * // In CanvasStage.jsx
- * <ShepherdStep feature="drop-shadow" index={0}
+ * <EventopStep feature="drop-shadow" index={0}
  *   advanceOn={{ selector: '.canvas-el', event: 'click', delay: 300 }}>
  *   <div className="canvas-stage">...</div>
- * </ShepherdStep>
+ * </EventopStep>
  *
  * // In Toolbar.jsx — completely separate component
- * <ShepherdStep feature="drop-shadow" index={1} waitFor=".canvas-el.selected">
+ * <EventopStep feature="drop-shadow" index={1} waitFor=".canvas-el.selected">
  *   <button id="btn-effects">Effects</button>
- * </ShepherdStep>
+ * </EventopStep>
  */
-export const ShepherdStep: FC<ShepherdStepProps>;
+export const EventopStep: FC<EventopStepProps>;
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
-export interface ShepherdAIHook {
+export interface EventopAIHook {
   open():                   void;
   close():                  void;
   cancelTour():             void;
@@ -149,7 +149,7 @@ export interface ShepherdAIHook {
    * Call after async validation succeeds.
    *
    * @example
-   * const { stepComplete, stepFail } = useShepherdAI();
+   * const { stepComplete, stepFail } = useEventopAI();
    * const ok = await validateEmail(email);
    * if (ok) stepComplete();
    * else stepFail('Please enter a valid email address.');
@@ -165,7 +165,7 @@ export interface ShepherdAIHook {
  *
  * @example
  * function CheckoutStep() {
- *   const { stepComplete, stepFail } = useShepherdAI();
+ *   const { stepComplete, stepFail } = useEventopAI();
  *   async function handleContinue() {
  *     const ok = await validateCard(number);
  *     if (ok) stepComplete();
@@ -174,9 +174,9 @@ export interface ShepherdAIHook {
  *   return <button onClick={handleContinue}>Continue</button>;
  * }
  */
-export function useShepherdAI(): ShepherdAIHook;
+export function useEventopAI(): EventopAIHook;
 
-export interface ShepherdTourState {
+export interface EventopTourState {
   /** True if a tour is currently running */
   isActive: boolean;
   /** True if a tour is paused (cancelled but resumable) */
@@ -195,7 +195,7 @@ export interface ShepherdTourState {
  *
  * @example
  * function TourBar() {
- *   const { isActive, isPaused, resume, cancel } = useShepherdTour();
+ *   const { isActive, isPaused, resume, cancel } = useEventopTour();
  *   if (!isActive && !isPaused) return null;
  *   return (
  *     <div>
@@ -205,4 +205,4 @@ export interface ShepherdTourState {
  *   );
  * }
  */
-export function useShepherdTour(): ShepherdTourState;
+export function useEventopTour(): EventopTourState;

@@ -233,7 +233,7 @@ export interface EventopSDK {
    *
    * @example
    * const ok = await validateEmail(email);
-   * if (ok) ShepherdAI.stepComplete();
+   * if (ok) EventopAI.stepComplete();
    */
   stepComplete(): void;
 
@@ -241,7 +241,7 @@ export interface EventopSDK {
    * Block tour advancement and show an inline error in the current step tooltip.
    *
    * @example
-   * ShepherdAI.stepFail('Please enter a valid email address.');
+   * EventopAI.stepFail('Please enter a valid email address.');
    */
   stepFail(message: string): void;
 
@@ -255,5 +255,5 @@ export interface EventopSDK {
   _updateConfig(partial: Partial<Config>): void;
 }
 
-declare const ShepherdAI: EventopSDK;
-export default ShepherdAI;
+declare const EventopAI: EventopSDK;
+export default EventopAI;

@@ -3,16 +3,16 @@
  *
  * The live map of everything currently mounted in the React tree.
  *
- * Features   — registered by ShepherdTarget
- * Flow steps — registered by ShepherdStep, attached to a feature by id
+ * Features   — registered by EventopTarget
+ * Flow steps — registered by EventopStep, attached to a feature by id
  *
  * Both features and steps can live anywhere in the component tree.
- * They don't need to be co-located. A ShepherdStep just needs to know
+ * They don't need to be co-located. An EventopStep just needs to know
  * which feature id it belongs to.
  *
  * Nested steps:
  *   Steps can themselves have children steps (sub-steps) by passing
- *   a parentStep prop to ShepherdStep. This lets you model flows like:
+ *   a parentStep prop to EventopStep. This lets you model flows like:
  *
  *   Feature: "Create styled text"
  *     Step 0: Click Add Text
