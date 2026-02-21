@@ -24,7 +24,7 @@ function copyTypes() {
 
 const babelPlugin = babel({
   babelHelpers: 'bundled',
-  presets:      ['@babel/preset-react', { runtime: 'automatic' }],
+  presets:      [['@babel/preset-react', { runtime: 'automatic' }]],
   extensions:   ['.js', '.jsx'],
 });
 
