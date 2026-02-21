@@ -33,7 +33,7 @@ export default [
   // ── Main SDK ──────────────────────────────────────────────────────────────
   {
     input:    'src/index.js',
-    external: ['react'],
+    external: ['react', 'react/jsx-runtime'],
     output: [
       { file: 'dist/index.js',  format: 'esm' },
       { file: 'dist/index.cjs', format: 'cjs' },
@@ -49,7 +49,7 @@ export default [
   // ── React subpath ─────────────────────────────────────────────────────────
   {
     input:    'src/react/index.js',
-    external: ['react'],
+    external: ['react', 'react/jsx-runtime'],
     output: [
       { file: 'dist/react/index.js',  format: 'esm' },
       { file: 'dist/react/index.cjs', format: 'cjs' },

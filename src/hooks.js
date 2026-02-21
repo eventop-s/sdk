@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback } from 'react';
 //  }
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function useEventop() {
+export function useEventopAI() {
   const sdk = () => window.Eventop;
 
   return {
