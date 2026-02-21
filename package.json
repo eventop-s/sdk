@@ -1,9 +1,9 @@
 {
   "name": "@eventop/sdk",
   "version": "1.0.3",
-  "description": "Official SDK for Eventop on-chain subscriptions",
+  "description": "Official SDK for Eventop",
   "keywords": [
-    "solana",
+    "Onboarding",
     "subscriptions",
     "crypto",
     "payments"

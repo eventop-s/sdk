@@ -59,14 +59,7 @@ export function EventopProvider({
       syncToSDK();
     }
 
-    if (window.Eventop) {
-      boot();
-    } else {
-      const s = document.createElement('script');
-      s.src    = 'https://unpkg.com/shepherd-ai-sdk/dist/shepherd-ai.umd.js';
-      s.onload = boot;
-      document.head.appendChild(s);
-    }
+    boot()
 
     const unsub = registry.subscribe(syncToSDK);
     return () => { unsub(); window.Eventop?.cancelTour(); };
