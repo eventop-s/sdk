@@ -1,6 +1,6 @@
 {
   "name": "@eventop/sdk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "AI-powered guided tours for any web app. Drop-in, themeable, provider-agnostic.",
   "keywords": [
     "onboarding",
@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.23.9",
+    "@babel/plugin-transform-react-jsx": "^7.28.6",
     "@babel/preset-react": "^7.23.3",
     "@rollup/plugin-babel": "^6.0.4",
     "@rollup/plugin-commonjs": "^25.0.7",
