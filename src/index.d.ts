@@ -88,7 +88,7 @@ export interface ThemeTokens {
 
 export interface Theme {
   /** 'auto' reads prefers-color-scheme. Default: 'auto' */
-  mode?:   'auto' | 'light' | 'dark';
+  mode?:   'auto' | 'light' | 'dark' | 'glass';
   /** Named preset. Overridden by tokens if both are provided. */
   preset?: 'default' | 'minimal' | 'soft';
   /** Override individual design tokens */
