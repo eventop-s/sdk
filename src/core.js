@@ -96,8 +96,15 @@
   }
 
   function applyTheme(t) {
-    document.getElementById('sai-panel')  ?.style.cssText += buildCSSVars(t);
-    document.getElementById('sai-trigger')?.style.cssText += buildCSSVars(t);
+    const panel = document.getElementById('sai-panel');
+    const trigger = document.getElementById('sai-trigger');
+    
+    if (panel) {
+        panel.style.cssText += buildCSSVars(t);
+    }
+    if (trigger) {
+        trigger.style.cssText += buildCSSVars(t);
+    }
   }
 
 

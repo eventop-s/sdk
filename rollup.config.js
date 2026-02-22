@@ -24,8 +24,14 @@ function copyTypes() {
 
 const babelPlugin = babel({
   babelHelpers: 'bundled',
-  presets:      [['@babel/preset-react', { runtime: 'automatic' }]],
-  extensions:   ['.js', '.jsx'],
+  presets: [
+    ['@babel/preset-env', { 
+      targets: { node: '14' },
+      // This ensures optional chaining and other modern features are transpiled
+    }],
+    ['@babel/preset-react', { runtime: 'automatic' }]
+  ],
+  extensions: ['.js', '.jsx'],
 });
 
 export default [
@@ -40,7 +46,7 @@ export default [
     ],
     plugins: [
       resolve(),
-      commonjs(),
+      commonjs({ transformMixedEsModules: true }),
       babelPlugin,
       copyTypes(), // runs once after all outputs are written
     ],
@@ -56,7 +62,7 @@ export default [
     ],
     plugins: [
       resolve(),
-      commonjs(),
+      commonjs({ transformMixedEsModules: true }),
       babelPlugin,
     ],
   },
