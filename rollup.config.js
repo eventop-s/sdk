@@ -4,7 +4,6 @@ import babel    from '@rollup/plugin-babel';
 import { copyFileSync, mkdirSync } from 'fs';
 
 // Copy .d.ts files into dist after build
-// Rollup doesn't process .d.ts — we just need them in the right place
 function copyTypes() {
   return {
     name: 'copy-types',
@@ -27,7 +26,6 @@ const babelPlugin = babel({
   presets: [
     ['@babel/preset-env', { 
       targets: { node: '14' },
-      // This ensures optional chaining and other modern features are transpiled
     }],
     ['@babel/preset-react', { runtime: 'automatic' }]
   ],
@@ -41,14 +39,24 @@ export default [
     input:    'src/index.js',
     external: ['react', 'react/jsx-runtime'],
     output: [
-      { file: 'dist/index.js',  format: 'esm' },
-      { file: 'dist/index.cjs', format: 'cjs' },
+      { 
+        dir: 'dist',
+        format: 'esm',
+        entryFileNames: 'index.js',
+        chunkFileNames: '[name].js'
+      },
+      { 
+        dir: 'dist',
+        format: 'cjs',
+        entryFileNames: 'index.cjs',
+        chunkFileNames: '[name].cjs'
+      },
     ],
     plugins: [
       resolve(),
       commonjs({ transformMixedEsModules: true }),
       babelPlugin,
-      copyTypes(), // runs once after all outputs are written
+      copyTypes(),
     ],
   },
 
@@ -57,8 +65,18 @@ export default [
     input:    'src/react/index.js',
     external: ['react', 'react/jsx-runtime'],
     output: [
-      { file: 'dist/react/index.js',  format: 'esm' },
-      { file: 'dist/react/index.cjs', format: 'cjs' },
+      { 
+        dir: 'dist/react',
+        format: 'esm',
+        entryFileNames: 'index.js',
+        chunkFileNames: '[name].js'
+      },
+      { 
+        dir: 'dist/react',
+        format: 'cjs',
+        entryFileNames: 'index.cjs',
+        chunkFileNames: '[name].cjs'
+      },
     ],
     plugins: [
       resolve(),

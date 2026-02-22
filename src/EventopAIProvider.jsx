@@ -1,4 +1,3 @@
-import './core.js';
 import { useEffect, useRef, useCallback } from 'react';
 import { EventopRegistryContext } from './context.js';
 import { createFeatureRegistry } from './registry.js';
@@ -43,7 +42,11 @@ export function EventopProvider({
   }, [registry]);
 
   useEffect(() => {
-    function boot() {
+    // Dynamically import core.js only in the browser
+    async function boot() {
+      // Import the core SDK (this only runs on client)
+      await import('./core.js');
+      
       window.Eventop.init({
         provider,
         config: {
@@ -60,11 +63,16 @@ export function EventopProvider({
       syncToSDK();
     }
 
-    boot()
+    boot();
 
     const unsub = registry.subscribe(syncToSDK);
-    return () => { unsub(); window.Eventop?.cancelTour(); };
-  }, []);
+    return () => { 
+      unsub(); 
+      if (typeof window !== 'undefined') {
+        window.Eventop?.cancelTour();
+      }
+    };
+  }, [provider, appName, assistantName, suggestions, theme, position, registry, syncToSDK]);
 
   const ctx = {
     registerFeature:   registry.registerFeature,

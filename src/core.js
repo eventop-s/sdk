@@ -9,12 +9,19 @@
  */
 
 (function (global, factory) {
+  const Eventop = factory();
+  
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
-  } else if (typeof define === 'function' && define.amd) {
-    define(factory);
-  } else {
-    global.Eventop = factory();
+    module.exports = Eventop;
+  }
+  if (typeof define === 'function' && define.amd) {
+    define(function() { return Eventop; });
+  }
+  // Always set on global in browser environments
+  if (typeof window !== 'undefined') {
+    window.Eventop = Eventop;
+  } else if (typeof global !== 'undefined') {
+    global.Eventop = Eventop;
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
