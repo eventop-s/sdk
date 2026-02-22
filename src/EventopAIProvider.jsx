@@ -1,3 +1,4 @@
+import './core.js';
 import { useEffect, useRef, useCallback } from 'react';
 import { EventopRegistryContext } from './context.js';
 import { createFeatureRegistry } from './registry.js';
