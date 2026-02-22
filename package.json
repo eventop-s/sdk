@@ -1,6 +1,6 @@
 {
   "name": "@eventop/sdk",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "AI-powered guided tours for any web app. Drop-in, themeable, provider-agnostic.",
   "keywords": [
     "onboarding",

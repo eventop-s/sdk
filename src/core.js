@@ -77,6 +77,7 @@
     default: {},
     minimal: { accent: '#000000', accentSecondary: '#333333', radius: '8px' },
     soft:    { accent: '#6366f1', accentSecondary: '#8b5cf6', radius: '20px' },
+    glass:   { radius: '14px' },
   };
 
   function resolveTheme(themeConfig = {}) {
@@ -811,6 +812,25 @@ RULES:
         border-radius: 6px; color: #ef4444; font-size: 12px; line-height: 1.5;
         animation: sai-in .18s ease;
       }
+
+      /* ── Glass preset ── */
+      .sai-glass-preset .sai-shepherd-step {
+        background: rgba(255, 255, 255, 0.10) !important;
+        backdrop-filter: blur(18px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        box-shadow: 0 8px 36px rgba(0,0,0,.12) !important;
+      }
+      .sai-glass-preset .sai-shepherd-step .shepherd-text,
+      .sai-glass-preset .sai-shepherd-step .shepherd-title {
+        color: #ffffff !important;
+        text-shadow: 0 1px 3px rgba(0,0,0,.35);
+      }
+      .sai-glass-preset .sai-shepherd-step .shepherd-footer,
+      .sai-glass-preset .sai-shepherd-step .shepherd-header {
+        background: transparent !important;
+        border-color: rgba(255,255,255,0.15) !important;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -854,6 +874,10 @@ RULES:
       </div>
     `;
     document.body.appendChild(panel);
+
+    if (_config.theme?.preset === 'glass') {
+      document.body.classList.add('sai-glass-preset');
+    }
 
     if (_config.suggestions?.length) {
       const container = panel.querySelector('#sai-suggestions');
@@ -1013,6 +1037,7 @@ RULES:
       _tour     = null;
       document.getElementById('sai-trigger')?.classList.remove('sai-paused');
       document.getElementById('sai-resume-prompt')?.remove();
+      document.body.classList.remove('sai-glass-preset');
     },
 
     resumeTour() {
