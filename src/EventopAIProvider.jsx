@@ -79,7 +79,7 @@ export function EventopProvider({
 
   useEffect(() => {
     async function boot() {
-      await import('./core.js');
+      await import('./core/core.js'); // Ensure the UMD bundle is loaded (for Shepherd and global Eventop)
 
       window.Eventop.init({
         provider,
