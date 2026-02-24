@@ -1,3 +1,11 @@
+## v1.2.15 — 2026-02-24
+
+### Other
+- chore: just want to bump version (`bf2ecd0`)
+- revert: prompt (`65129de`)
+
+---
+
 ## v1.2.14 — 2026-02-24
 
 ### Bug Fixes
