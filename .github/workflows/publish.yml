@@ -35,11 +35,91 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump patch version
+      - name: Determine version bump from commit history
         id: version
         run: |
-          NEW_VERSION=$(npm version patch --no-git-tag-version)
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" "$LAST_TAG"..HEAD)
+          fi
+
+          echo "Commits since last tag:"
+          echo "$COMMITS"
+
+          # Determine bump level
+          # breaking change (major) — "BREAKING CHANGE" in body or "!:" in subject
+          if echo "$COMMITS" | grep -qE "^(feat|fix|refactor|chore|docs|style|test|perf)!:|BREAKING CHANGE"; then
+            BUMP="major"
+          # new feature (minor)
+          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          # everything else — fix, docs, refactor, chore, etc. (patch)
+          else
+            BUMP="patch"
+          fi
+
+          echo "Bump level: $BUMP"
+          NEW_VERSION=$(npm version $BUMP --no-git-tag-version)
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s|%h" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s|%h" "$LAST_TAG"..HEAD)
+          fi
+
+          VERSION=${{ steps.version.outputs.new_version }}
+          DATE=$(date +%Y-%m-%d)
+
+          # Build grouped changelog
+          FEATURES=""
+          FIXES=""
+          DOCS=""
+          REFACTORS=""
+          OTHERS=""
+
+          while IFS='|' read -r subject hash; do
+            LINE="- ${subject} (\`${hash}\`)"
+            if echo "$subject" | grep -qE "^feat(\(.+\))?:"; then
+              FEATURES="${FEATURES}${LINE}\n"
+            elif echo "$subject" | grep -qE "^fix(\(.+\))?:"; then
+              FIXES="${FIXES}${LINE}\n"
+            elif echo "$subject" | grep -qE "^docs(\(.+\))?:"; then
+              DOCS="${DOCS}${LINE}\n"
+            elif echo "$subject" | grep -qE "^refactor(\(.+\))?:"; then
+              REFACTORS="${REFACTORS}${LINE}\n"
+            else
+              OTHERS="${OTHERS}${LINE}\n"
+            fi
+          done <<< "$COMMITS"
+
+          # Write CHANGELOG.md (prepend new entry)
+          ENTRY="## ${VERSION} — ${DATE}\n"
+          [ -n "$FEATURES" ]  && ENTRY="${ENTRY}\n### Features\n${FEATURES}"
+          [ -n "$FIXES" ]     && ENTRY="${ENTRY}\n### Bug Fixes\n${FIXES}"
+          [ -n "$REFACTORS" ] && ENTRY="${ENTRY}\n### Refactors\n${REFACTORS}"
+          [ -n "$DOCS" ]      && ENTRY="${ENTRY}\n### Docs\n${DOCS}"
+          [ -n "$OTHERS" ]    && ENTRY="${ENTRY}\n### Other\n${OTHERS}"
+
+          # Prepend to existing CHANGELOG.md or create it
+          if [ -f CHANGELOG.md ]; then
+            EXISTING=$(cat CHANGELOG.md)
+            printf "${ENTRY}\n---\n\n${EXISTING}" > CHANGELOG.md
+          else
+            printf "# Changelog\n\n${ENTRY}" > CHANGELOG.md
+          fi
+
+          echo "changelog_entry<<EOF" >> $GITHUB_OUTPUT
+          printf "$ENTRY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Build
         run: yarn build
@@ -51,7 +131,14 @@ jobs:
 
       - name: Commit & tag version bump
         run: |
-          git add package.json
+          git add package.json CHANGELOG.md
           git commit -m "chore: release ${{ steps.version.outputs.new_version }} [skip ci]"
           git tag ${{ steps.version.outputs.new_version }}
           git push origin HEAD --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_version }}
+          name: ${{ steps.version.outputs.new_version }}
+          body: ${{ steps.changelog.outputs.changelog_entry }}
