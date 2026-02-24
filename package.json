@@ -17,7 +17,7 @@
     "type": "git",
     "url": "git+https://github.com/eventop-s/sdk.git"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "author": "Emengkeng Juslen",
   "type": "module",
   "main": "./dist/index.js",
