@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════╗
- * ║   @eventop/sdk  v1.1.0                                       ║
+ * ║   @eventop/sdk  v1.3.0                                       ║
  * ║   AI-powered guided tours — themeable, provider-agnostic     ║
  * ║                                                              ║
  * ║   Provider: always proxy through your own server.            ║
@@ -32,6 +32,7 @@
   // ─── Internal state ──────────────────────────────────────────────────────────
   let _provider   = null;
   let _config     = null;
+  let _router     = null;   // (path: string) => void | Promise<void>
   let _tour       = null;
   let _isOpen     = false;
   let _messages   = [];
@@ -144,23 +145,6 @@
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  PROVIDER
-  //  Only custom() is supported — route AI calls through your own server.
-  //
-  //  Your endpoint receives:  POST { systemPrompt, messages }
-  //  Your endpoint must return: { message: string, steps: Step[] }
-  //
-  //  @example
-  //  Eventop.init({
-  //    provider: Eventop.providers.custom(async ({ systemPrompt, messages }) => {
-  //      const res = await fetch('/api/guide', {
-  //        method:  'POST',
-  //        headers: { 'Content-Type': 'application/json' },
-  //        body:    JSON.stringify({ systemPrompt, messages }),
-  //      });
-  //      return res.json();
-  //    }),
-  //    config: { ... },
-  //  });
   // ═══════════════════════════════════════════════════════════════════════════
 
   const providers = {
@@ -190,6 +174,8 @@
         name:        f.name,
         description: f.description,
         screen:      f.screen?.id || 'default',
+        // Include route so AI understands the app's page structure
+        ...(f.route ? { route: f.route } : {}),
       };
       if (f.flow?.length) {
         entry.note = `This feature has ${f.flow.length} sequential sub-steps. Include ONE step per flow entry.`;
@@ -266,7 +252,127 @@ RULES:
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  SCREEN NAVIGATION
+  //  SMART NAVIGATION
+  //
+  //  Three-layer approach:
+  //  1. Before tour starts → announce which pages will be visited
+  //  2. Per-step in beforeShowPromise → navigate if not on the right route
+  //  3. After navigation → wait for the target element to confirm render
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Returns the current pathname. Centralised so it's easy to mock in tests.
+   */
+  function getCurrentRoute() {
+    return typeof window !== 'undefined' ? window.location.pathname : '/';
+  }
+
+  /**
+   * Polls until `window.location.pathname === targetRoute` or timeout.
+   * Resolves (never rejects) so a slow router doesn't blow up the tour.
+   */
+  function waitForRouteChange(targetRoute, timeout = 8000) {
+    return new Promise(resolve => {
+      if (window.location.pathname === targetRoute) return resolve();
+
+      const interval = setInterval(() => {
+        if (window.location.pathname === targetRoute) {
+          clearInterval(interval);
+          clearTimeout(timer);
+          resolve();
+        }
+      }, 50);
+
+      const timer = setTimeout(() => {
+        clearInterval(interval);
+        console.warn(`[Eventop] Route change to "${targetRoute}" timed out — continuing`);
+        resolve();
+      }, timeout);
+
+      _cleanups.push(() => { clearInterval(interval); clearTimeout(timer); });
+    });
+  }
+
+  /**
+   * Navigate to `route` using (in priority order):
+   *   1. _router — the function passed by the developer (React Router / Next.js)
+   *   2. window.history.pushState + popstate — best-effort fallback for simple SPAs
+   *
+   * Shows a friendly chat message so the user knows what's happening,
+   * then waits for the URL to confirm the navigation completed.
+   */
+  async function navigateToRoute(route, featureName) {
+    if (!route || getCurrentRoute() === route) return;
+
+    // Tell the user what's about to happen before it happens
+    addMsg('ai', `↗ Taking you to ${featureName ? `the ${featureName} area` : route}…`);
+
+    try {
+      if (_router) {
+        await Promise.resolve(_router(route));
+      } else {
+        // Fallback: push state and fire popstate.
+        // Only works if the SPA's router is listening — better than nothing.
+        window.history.pushState({}, '', route);
+        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+      }
+    } catch (err) {
+      console.warn('[Eventop] Navigation error:', err);
+    }
+
+    // Wait for the URL to actually change (proves the router handled the push)
+    await waitForRouteChange(route, 8000);
+
+    // Give the framework a tick to begin rendering the new page tree
+    await new Promise(r => setTimeout(r, 80));
+  }
+
+  /**
+   * Looks at the steps the AI returned and figures out which routes
+   * will be visited that the user isn't already on.
+   *
+   * Returns an array of unique routes in visit order, excluding current.
+   */
+  function previewRoutesNeeded(aiSteps) {
+    const currentRoute = getCurrentRoute();
+    const seen         = new Set([currentRoute]);
+    const ordered      = [];
+
+    aiSteps.forEach(step => {
+      const feature = _config?.features?.find(f => f.id === step.id);
+      if (feature?.route && !seen.has(feature.route)) {
+        seen.add(feature.route);
+        ordered.push({ route: feature.route, featureName: feature.name });
+      }
+    });
+
+    return ordered;
+  }
+
+  /**
+   * Adds a human-readable pre-tour navigation announcement to the chat.
+   * Called right before the panel closes and the tour starts, so the user
+   * has a moment to read it.
+   */
+  function announceNavigationPlan(routesNeeded) {
+    if (!routesNeeded.length) return;
+
+    const names = routesNeeded.map(r => r.featureName || r.route);
+    let msg;
+
+    if (names.length === 1) {
+      msg = `🗺 I'll navigate you to the ${names[0]} area automatically — no need to go there yourself.`;
+    } else {
+      const list = names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+      msg = `🗺 This tour visits ${names.length} areas: ${list}. I'll navigate between them automatically.`;
+    }
+
+    addMsg('ai', msg);
+  }
+
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  SCREEN NAVIGATION (legacy — kept for backward-compat with `screen` prop)
   // ═══════════════════════════════════════════════════════════════════════════
 
   async function ensureOnCorrectScreen(feature) {
@@ -286,8 +392,6 @@ RULES:
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  FLOW EXPANSION
-  //  A feature with flow[] gets expanded into multiple Shepherd steps.
-  //  Developer supplies selectors; AI supplies copy for the parent step.
   // ═══════════════════════════════════════════════════════════════════════════
 
   function expandFlowSteps(aiStep, feature) {
@@ -361,7 +465,7 @@ RULES:
 
   function mergeWithFeature(step) {
     if (!_config?.features) return step;
-    const feature = _config.features.find(f => f.id === step.id);
+    const feature = _config.features.find(f => f.id === (step._parentId || step.id));
     if (!feature) return step;
     return {
       waitFor:   feature.waitFor   || null,
@@ -369,6 +473,7 @@ RULES:
       validate:  feature.validate  || null,
       screen:    feature.screen    || null,
       flow:      feature.flow      || null,
+      route:     feature.route     || null,
       ...step,
       selector: feature.selector || step.selector, // feature map always wins
     };
@@ -449,6 +554,65 @@ RULES:
     if (!_isOpen) togglePanel();
   }
 
+  /**
+   * Build a `beforeShowPromise` for a Shepherd step that handles:
+   *   1. Cross-page navigation (via `route` prop) with automatic waiting
+   *   2. Element waiting (via `waitFor` prop)
+   *   3. Legacy screen navigation (via `screen.navigate`)
+   *
+   * Navigation is re-checked at show-time (not tour-start time) so that
+   * features registered by the new page's components are available.
+   *
+   * @param {object} step         — the expanded step object
+   * @param {number} waitTimeout  — ms before waitForElement gives up
+   */
+  function makeBeforeShowPromise(step, waitTimeout) {
+    return () => (async () => {
+      // ── 1. Re-merge with the live feature registry ───────────────────────
+      // Features on other pages may not have been registered when runTour()
+      // was first called. Re-merging here (at show time) ensures we get the
+      // correct selector after navigation has completed and React has mounted
+      // the new page's components.
+      const freshMerged = mergeWithFeature(step);
+
+      // ── 2. Route-based navigation ────────────────────────────────────────
+      const targetRoute = freshMerged.route;
+      if (targetRoute && getCurrentRoute() !== targetRoute) {
+        await navigateToRoute(targetRoute, freshMerged.name || step.title);
+
+        // After navigation, the new page's EventopTarget components will have
+        // mounted and registered. Re-merge once more to pick up the selector.
+        const postNavMerge = mergeWithFeature(step);
+
+        // Update Shepherd's attachTo with the now-known selector.
+        // Shepherd v11 supports updateStepOptions() for this exact use case.
+        if (postNavMerge.selector) {
+          try {
+            step._shepherdRef?.updateStepOptions?.({
+              attachTo: { element: postNavMerge.selector, on: step.position || 'bottom' },
+            });
+          } catch (_) {
+            // Shepherd may not support this in all builds — non-fatal
+          }
+
+          // Wait for the element to actually appear in the DOM
+          await waitForElement(postNavMerge.selector, waitTimeout);
+          return; // waitForElement already ensures the element is there
+        }
+      }
+
+      // ── 3. Legacy screen-based navigation ────────────────────────────────
+      if (freshMerged.screen) {
+        await ensureOnCorrectScreen(freshMerged);
+      }
+
+      // ── 4. Standard waitFor ───────────────────────────────────────────────
+      if (freshMerged.waitFor) {
+        await waitForElement(freshMerged.waitFor, waitTimeout);
+      }
+    })();
+  }
+
   async function runTour(steps, options = {}) {
     await ensureShepherd();
 
@@ -461,12 +625,14 @@ RULES:
 
     const { showProgress = true, waitTimeout = 8000 } = options;
 
-    // Merge AI steps with feature map
+    // Merge AI steps with the feature map that is currently registered.
+    // Steps for features on other pages will get partial data here — the rest
+    // is filled in lazily inside beforeShowPromise after navigation.
     const mergedSteps = steps.map(mergeWithFeature);
 
-    // Navigate to the correct screen for the first step if needed
+    // Navigate to the correct screen for the first step if needed (legacy path)
     const firstFeature = _config?.features?.find(f => f.id === mergedSteps[0]?.id);
-    if (firstFeature) await ensureOnCorrectScreen(firstFeature);
+    if (firstFeature?.screen) await ensureOnCorrectScreen(firstFeature);
 
     // Expand flow[] features into individual Shepherd steps
     const expandedSteps = mergedSteps.flatMap(step => {
@@ -510,12 +676,13 @@ RULES:
         attachTo: step.selector
           ? { element: step.selector, on: step.position || 'bottom' }
           : undefined,
-        beforeShowPromise: step.waitFor
-          ? () => waitForElement(step.waitFor, waitTimeout)
-          : undefined,
+        // Navigation + waitFor are both handled here, in show-time order
+        beforeShowPromise: makeBeforeShowPromise(step, waitTimeout),
         buttons,
       });
 
+      // Back-reference so makeBeforeShowPromise can call updateStepOptions
+      step._shepherdRef = shepherdStep;
       shepherdStep._isLast = isLast;
 
       if (hasAuto) wireAdvanceOn(shepherdStep, step.advanceOn, _tour);
@@ -692,6 +859,14 @@ RULES:
         color: #ef4444;
         border: 1px solid color-mix(in srgb, #ef4444 25%, var(--sai-bg));
         align-self: flex-start;
+      }
+      /* ── Navigation notice (styled slightly different from regular AI msgs) ── */
+      .sai-msg.sai-nav {
+        background: color-mix(in srgb, var(--sai-accent2) 8%, var(--sai-surface));
+        color: var(--sai-text);
+        border: 1px solid color-mix(in srgb, var(--sai-accent2) 20%, var(--sai-border));
+        border-bottom-left-radius: 3px; align-self: flex-start;
+        font-size: 12px;
       }
 
       /* ── Typing indicator ── */
@@ -979,11 +1154,24 @@ RULES:
       const result = await callAI(text);
       hideTyping();
       addMsg('ai', result.message);
+
       if (result.steps?.length) {
+        // ── Navigation announcement ─────────────────────────────────────────
+        // Preview which routes the tour will need to visit so we can tell
+        // the user before the panel closes and the tour starts.
+        const routesNeeded = previewRoutesNeeded(result.steps);
+        if (routesNeeded.length > 0) {
+          announceNavigationPlan(routesNeeded);
+        }
+
+        // Slightly longer delay when navigation is involved so the user has
+        // time to read the announcement before the panel closes.
+        const delay = routesNeeded.length > 0 ? 1200 : 600;
+
         setTimeout(() => {
           togglePanel();
           runTour(result.steps);
-        }, 600);
+        }, delay);
       }
     } catch (err) {
       hideTyping();
@@ -1010,6 +1198,7 @@ RULES:
 
       _provider = opts.provider;
       _config   = opts.config;
+      _router   = opts.config.router || null;
 
       const theme  = resolveTheme(_config.theme);
       const posCSS = resolvePosition(_config.position);
@@ -1061,6 +1250,8 @@ RULES:
     _updateConfig(partial) {
       if (!_config) return;
       _config = { ..._config, ...partial };
+      // Re-extract router if it was updated (e.g. router instance changed)
+      if (partial.router !== undefined) _router = partial.router;
     },
   };
 

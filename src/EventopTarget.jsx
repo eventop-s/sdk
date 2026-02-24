@@ -6,12 +6,27 @@ import { useRegistry, EventopFeatureScopeContext } from './context.js';
  *
  * Wraps any component and registers it as an Eventop feature at the call site.
  * The wrapped component does not need to know about Eventop.
+ *
+ * NEW: `route` prop — the pathname where this feature lives (e.g. "/settings/export").
+ * When a tour step points at a feature that has `route`, the SDK will automatically
+ * navigate there before showing the step and explain to the user why it's navigating.
+ *
+ * @example — React Router
+ * <EventopTarget id="billing" name="Billing" route="/settings/billing">
+ *   <BillingSection />
+ * </EventopTarget>
+ *
+ * @example — Next.js App Router
+ * <EventopTarget id="export" name="Export" route="/canvas/export">
+ *   <ExportButton />
+ * </EventopTarget>
  */
 export function EventopTarget({
   children,
   id,
   name,
   description,
+  route,
   navigate,
   navigateWaitFor,
   advanceOn,
@@ -34,6 +49,7 @@ export function EventopTarget({
       id,
       name,
       description,
+      route,
       selector,
       navigate,
       navigateWaitFor,
@@ -42,7 +58,7 @@ export function EventopTarget({
     });
 
     return () => registry.unregisterFeature(id);
-  }, [id, name, description]);
+  }, [id, name, description, route]);
 
   const child = Children.only(children);
 

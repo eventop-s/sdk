@@ -15,6 +15,29 @@ export interface EventopAIProviderProps {
   suggestions?:    string[];
   theme?:          Theme;
   position?:       Position;
+  /**
+   * Navigation function for cross-page tours.
+   *
+   * When a tour step lives on a different route, the SDK calls this function
+   * with the target pathname, shows the user a message explaining the navigation,
+   * then waits for the target element to appear before showing the step.
+   *
+   * If omitted, the SDK falls back to window.history.pushState + popstate
+   * (best-effort; works for simple SPAs but not React Router / Next.js).
+   *
+   * @example — React Router v6
+   * const navigate = useNavigate();
+   * <EventopAIProvider router={navigate} ...>
+   *
+   * @example — Next.js App Router
+   * const router = useRouter(); // from 'next/navigation'
+   * <EventopAIProvider router={(path) => router.push(path)} ...>
+   *
+   * @example — Next.js Pages Router
+   * const router = useRouter(); // from 'next/router'
+   * <EventopAIProvider router={(path) => router.push(path)} ...>
+   */
+  router?:         (path: string) => void | Promise<void>;
 }
 
 /**
@@ -23,13 +46,36 @@ export interface EventopAIProviderProps {
  * register with this provider automatically.
  *
  * @example
- * <EventopAIProvider
- *   provider={myServerFetcher}
- *   appName="My App"
- *   theme={{ mode: 'auto', tokens: { accent: '#6366f1' } }}
- * >
- *   <App />
- * </EventopAIProvider>
+ * // React Router v6
+ * function Root() {
+ *   const navigate = useNavigate();
+ *   return (
+ *     <EventopAIProvider
+ *       router={navigate}
+ *       provider={myServerFetcher}
+ *       appName="My App"
+ *       theme={{ mode: 'auto', tokens: { accent: '#6366f1' } }}
+ *     >
+ *       <App />
+ *     </EventopAIProvider>
+ *   );
+ * }
+ *
+ * @example
+ * // Next.js App Router (must be 'use client')
+ * 'use client';
+ * export function EventopProvider({ children }) {
+ *   const router = useRouter();
+ *   return (
+ *     <EventopAIProvider
+ *       router={(path) => router.push(path)}
+ *       provider={myServerFetcher}
+ *       appName="My App"
+ *     >
+ *       {children}
+ *     </EventopAIProvider>
+ *   );
+ * }
  */
 export const EventopAIProvider: FC<EventopAIProviderProps>;
 
@@ -45,8 +91,33 @@ export interface EventopTargetProps {
   /** What the feature does — AI uses this to match user intent */
   description?:      string;
   /**
+   * The pathname where this feature lives (e.g. "/settings/billing").
+   *
+   * When a tour step targets this feature and the user is on a different page,
+   * the SDK will automatically:
+   *   1. Tell the user which page it's navigating to and why
+   *   2. Call the `router` function passed to EventopAIProvider
+   *   3. Wait for this feature's element to appear before showing the step
+   *
+   * Only required for features that live on a different page than where
+   * the tour is typically started from. Features on the same page don't
+   * need this prop.
+   *
+   * @example
+   * <EventopTarget
+   *   id="billing"
+   *   name="Billing Settings"
+   *   route="/settings/billing"
+   * >
+   *   <BillingSection />
+   * </EventopTarget>
+   */
+  route?:            string;
+  /**
    * Navigate to this screen if the component is not currently mounted.
-   * Called when the user asks about this feature from a different screen.
+   * @deprecated Prefer `route` + the `router` prop on EventopAIProvider
+   *             for React Router and Next.js apps. `navigate` is still
+   *             supported for custom or non-URL-based navigation logic.
    */
   navigate?:         () => void | Promise<void>;
   /** CSS selector to wait for after navigating */
@@ -61,20 +132,27 @@ export interface EventopTargetProps {
 }
 
 /**
- * Wraps any component and registers it as a EventopAI feature.
+ * Wraps any component and registers it as an Eventop feature.
  * Registration happens at the CALL SITE — the wrapped component is unchanged.
  *
  * Works with any component: your own, shadcn, MUI, Radix, anything.
- * The wrapped component does not need to accept refs or know about EventopAI.
+ * The wrapped component does not need to accept refs or know about Eventop.
  *
  * @example
- * // Same Button, different features in different parts of the app
+ * // Feature on the same page — no route needed
  * <EventopTarget id="export" name="Export Design" description="Download as PNG or SVG">
  *   <Button onClick={handleExport}>Export</Button>
  * </EventopTarget>
  *
- * <EventopTarget id="share" name="Share Document" description="Share with teammates">
- *   <Button onClick={handleShare}>Share</Button>
+ * @example
+ * // Feature on a different page — add route so the SDK can navigate there
+ * <EventopTarget
+ *   id="billing"
+ *   name="Billing Settings"
+ *   description="Manage your subscription"
+ *   route="/settings/billing"
+ * >
+ *   <BillingSection />
  * </EventopTarget>
  */
 export const EventopTarget: FC<EventopTargetProps>;

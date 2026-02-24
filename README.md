@@ -61,8 +61,11 @@ app.post('/api/guide', async (req, res) => {
 
 ### 2. Add the provider at the root
 
+Pass your router's navigate function so the SDK can move users between pages automatically.
+
 ```jsx
 // main.jsx
+import { useNavigate } from 'react-router-dom';
 import { EventopAIProvider } from '@eventop/sdk/react';
 
 const provider = async ({ systemPrompt, messages }) => {
@@ -75,9 +78,12 @@ const provider = async ({ systemPrompt, messages }) => {
 };
 
 export default function App() {
+  const navigate = useNavigate();
+
   return (
     <EventopAIProvider
       provider={provider}
+      router={navigate}
       appName="My App"
       assistantName="AI Guide"
       suggestions={['How do I export?', 'Invite a teammate']}
@@ -92,8 +98,10 @@ export default function App() {
 
 ### 3. Wrap features anywhere in the tree
 
+Add `route` to any feature that lives on a different page. The SDK navigates there automatically when a tour needs it.
+
 ```jsx
-// ExportPanel.jsx
+// ExportPanel.jsx — lives on /canvas
 import { EventopTarget } from '@eventop/sdk/react';
 
 export function ExportPanel() {
@@ -102,6 +110,7 @@ export function ExportPanel() {
       id="export"
       name="Export Design"
       description="Download the design as PNG, SVG or PDF"
+      route="/canvas"
     >
       <div id="export-panel">
         <button>PNG</button>
@@ -113,7 +122,7 @@ export function ExportPanel() {
 }
 ```
 
-That's it. The chat bubble appears automatically. Users type what they need and get a guided tour.
+That's it. The chat bubble appears automatically. Users type what they need, the SDK figures out which page the feature is on, navigates there, and walks them through step by step.
 
 ---
 
@@ -159,11 +168,15 @@ export default async function handler(req, res) {
 
 ### 2. Add the provider in a client component
 
-The SDK touches the DOM so the provider must be a client component.
+The SDK touches the DOM so the provider must be a client component. Pass `router` so
+the SDK can navigate between pages during a tour.
 
 ```jsx
 // components/EventopProvider.jsx
 'use client';
+
+import { useRouter } from 'next/navigation'; // App Router
+// import { useRouter } from 'next/router';  // Pages Router
 
 import { EventopAIProvider } from '@eventop/sdk/react';
 
@@ -177,9 +190,12 @@ const provider = async ({ systemPrompt, messages }) => {
 };
 
 export function EventopProvider({ children }) {
+  const router = useRouter();
+
   return (
     <EventopAIProvider
       provider={provider}
+      router={(path) => router.push(path)}
       appName="My App"
       assistantName="AI Guide"
       suggestions={['How do I export?', 'Invite a teammate']}
@@ -212,9 +228,10 @@ export default function RootLayout({ children }) {
 ### 3. Wrap features in client components
 
 Any component that uses `EventopTarget`, `EventopStep`, or the hooks needs `'use client'`.
+Add `route` to features that live on a different page than where tours are typically started.
 
 ```jsx
-// components/Toolbar.jsx
+// components/Toolbar.jsx  — lives on /canvas
 'use client';
 
 import { EventopTarget } from '@eventop/sdk/react';
@@ -226,6 +243,7 @@ export function Toolbar() {
         id="export"
         name="Export Design"
         description="Download as PNG, SVG or PDF"
+        route="/canvas"
       >
         <button>Export</button>
       </EventopTarget>
@@ -234,6 +252,7 @@ export function Toolbar() {
         id="share"
         name="Share Design"
         description="Share a link to this design"
+        route="/canvas"
       >
         <button>Share</button>
       </EventopTarget>
@@ -241,6 +260,49 @@ export function Toolbar() {
   );
 }
 ```
+
+---
+
+## Smart navigation
+
+When a user asks about a feature that lives on a different page, the SDK handles
+everything automatically — no manual navigation code needed.
+
+**What the user sees:**
+
+Before the tour starts, the chat panel tells them which pages will be visited:
+
+> 🗺 This tour visits 2 areas: Export Design and Billing Settings. I'll navigate between them automatically.
+
+Mid-tour, just before each page change:
+
+> ↗ Taking you to the Billing Settings area…
+
+The page changes, the target element appears, and the tooltip shows — all without
+the user doing anything.
+
+**How to set it up:**
+
+Two things are required: `router` on the provider, and `route` on any `EventopTarget`
+that lives on a different page.
+
+```jsx
+// Provider — pass your router once
+<EventopAIProvider router={navigate} ...>
+
+// Feature on /settings/billing
+<EventopTarget id="billing" name="Billing" route="/settings/billing">
+  <BillingSection />
+</EventopTarget>
+
+// Feature on /canvas — no route needed if tours always start here
+<EventopTarget id="export" name="Export">
+  <ExportButton />
+</EventopTarget>
+```
+
+Features that share the page where tours are typically started don't need `route`.
+Only add it to features on other pages.
 
 ---
 
@@ -312,7 +374,7 @@ The parent feature still needs a `<EventopTarget>` somewhere:
   id="drop-shadow"
   name="Drop Shadow Effect"
   description="Apply a customisable drop shadow to a selected element"
-  navigate={() => router.push('/canvas')}
+  route="/canvas"
 >
   <div className="canvas-screen">
     <CanvasStage />
@@ -393,26 +455,28 @@ export function TourStatusBar() {
 
 ### `<EventopAIProvider>`
 
-| Prop            | Type       | Required | Default        | Description                   |
-|-----------------|------------|----------|----------------|-------------------------------|
-| `provider`      | function   | ✓        | —              | Async function that calls your server route |
-| `appName`       | string     | ✓        | —              | Shown in the chat header      |
-| `assistantName` | string     |          | `'AI Guide'`   | Name shown in the chat header |
-| `suggestions`   | string[]   |          | `[]`           | Clickable chips on first open |
-| `theme`         | object     |          | dark, default  | `{ mode, preset, tokens }`    |
-| `position`      | object     |          | bottom-right   | `{ corner, offsetX, offsetY }`|
+| Prop            | Type       | Required | Default        | Description                                                    |
+|-----------------|------------|----------|----------------|----------------------------------------------------------------|
+| `provider`      | function   | ✓        | —              | Async function that calls your server route                    |
+| `appName`       | string     | ✓        | —              | Shown in the chat header                                       |
+| `assistantName` | string     |          | `'AI Guide'`   | Name shown in the chat header                                  |
+| `router`        | function   |          | —              | `(path: string) => void` — your framework's navigate function. Used for cross-page tours. React Router: pass `useNavigate()`. Next.js: pass `(path) => router.push(path)`. Falls back to `history.pushState` if omitted. |
+| `suggestions`   | string[]   |          | `[]`           | Clickable chips on first open                                  |
+| `theme`         | object     |          | dark, default  | `{ mode, preset, tokens }`                                     |
+| `position`      | object     |          | bottom-right   | `{ corner, offsetX, offsetY }`                                 |
 
 ### `<EventopTarget>`
 
-| Prop              | Type     | Required | Description                                             |
-|-------------------|----------|----------|---------------------------------------------------------|
-| `id`              | string   | ✓        | Unique feature id                                       |
-| `name`            | string   | ✓        | Human-readable name the AI reads                        |
-| `description`     | string   |          | What it does — AI uses this to match user intent        |
-| `navigate`        | function |          | Navigate here if component is not currently mounted     |
-| `navigateWaitFor` | string   |          | CSS selector to wait for after navigating               |
-| `advanceOn`       | object   |          | `{ event, delay?, selector? }` — auto-advance the tour  |
-| `waitFor`         | string   |          | CSS selector to wait for before showing this step       |
+| Prop              | Type     | Required | Description                                                                  |
+|-------------------|----------|----------|------------------------------------------------------------------------------|
+| `id`              | string   | ✓        | Unique feature id                                                            |
+| `name`            | string   | ✓        | Human-readable name the AI reads                                             |
+| `description`     | string   |          | What it does — AI uses this to match user intent                             |
+| `route`           | string   |          | Pathname where this feature lives (e.g. `"/settings/billing"`). When set, the SDK auto-navigates here before showing this step and explains the navigation to the user. |
+| `navigate`        | function |          | Legacy: navigate here if component is not mounted. Prefer `route` + `router`.|
+| `navigateWaitFor` | string   |          | CSS selector to wait for after navigating                                    |
+| `advanceOn`       | object   |          | `{ event, delay?, selector? }` — auto-advance the tour                       |
+| `waitFor`         | string   |          | CSS selector to wait for before showing this step                            |
 
 ### `<EventopStep>`
 

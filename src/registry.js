@@ -24,12 +24,16 @@
  *
  *   In practice most flows are flat (index 0, 1, 2, 3...) but the
  *   registry supports nested depth for complex interactions.
+ *
+ * Route awareness:
+ *   Features can declare the pathname they live on via `route`.
+ *   The snapshot() includes this so the SDK core can navigate
+ *   automatically when a tour step targets a feature on a different page.
  */
 export function createFeatureRegistry() {
   // Map<featureId, featureData>
   const features  = new Map();
   // Map<featureId, Map<stepKey, stepData>>
-  // stepKey is either a number (flat) or "parentIndex.childIndex" (nested)
   const flowSteps = new Map();
 
   const listeners = new Set();
@@ -53,14 +57,6 @@ export function createFeatureRegistry() {
 
   // ── Step registration ────────────────────────────────────────────────────
 
-  /**
-   * Register a flow step.
-   *
-   * @param {string} featureId      - Parent feature id
-   * @param {number} index          - Position in the flat flow (0, 1, 2…)
-   * @param {number|null} parentStep - If set, this is a sub-step of parentStep
-   * @param {object} stepData       - { selector, waitFor, advanceOn, ... }
-   */
   function registerStep(featureId, index, parentStep, stepData) {
     if (!flowSteps.has(featureId)) {
       flowSteps.set(featureId, new Map());
@@ -86,31 +82,12 @@ export function createFeatureRegistry() {
 
   // ── Snapshot ─────────────────────────────────────────────────────────────
 
-  /**
-   * Build the flat flow array the SDK core expects.
-   *
-   * For nested steps we inline sub-steps after their parent step,
-   * in index order. This means a flow like:
-   *
-   *   Step 0 (flat)
-   *   Step 1 (flat)
-   *     Step 1.0 (sub-step of 1)
-   *     Step 1.1 (sub-step of 1)
-   *   Step 2 (flat)
-   *
-   * becomes the SDK flow: [step0, step1, step1.0, step1.1, step2]
-   *
-   * The AI writes titles/text for the parent feature.
-   * Sub-steps inherit the parent step's text with a "(N/M)" suffix added
-   * by the SDK's expandFlowSteps() function.
-   */
   function buildFlow(featureId) {
     const map = flowSteps.get(featureId);
     if (!map || map.size === 0) return null;
 
     const allSteps = Array.from(map.values());
 
-    // Separate top-level and nested steps
     const topLevel = allSteps
       .filter(s => s.parentStep == null)
       .sort((a, b) => a.index - b.index);
@@ -118,7 +95,6 @@ export function createFeatureRegistry() {
     const result = [];
     topLevel.forEach(step => {
       result.push(step);
-      // Inline any sub-steps after the parent
       const children = allSteps
         .filter(s => s.parentStep === step.index)
         .sort((a, b) => a.index - b.index);
@@ -130,7 +106,9 @@ export function createFeatureRegistry() {
 
   /**
    * Returns the live feature array in the format the SDK core expects.
-   * screen.check() is automatic — mounted = available.
+   *
+   * `route` is now included in every feature entry so the core can detect
+   * when navigation is needed before showing a step.
    */
   function snapshot() {
     return Array.from(features.values()).map(feature => {
@@ -140,8 +118,9 @@ export function createFeatureRegistry() {
         name:        feature.name,
         description: feature.description,
         selector:    feature.selector,
-        advanceOn:   feature.advanceOn  || null,
-        waitFor:     feature.waitFor    || null,
+        route:       feature.route     || null,
+        advanceOn:   feature.advanceOn || null,
+        waitFor:     feature.waitFor   || null,
         ...(flow ? { flow } : {}),
         screen: {
           id:       feature.id,

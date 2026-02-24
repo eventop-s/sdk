@@ -1,5 +1,7 @@
 // ─── Step ────────────────────────────────────────────────────────────────────
 
+import { JSX } from "react";
+
 export interface Step {
   id?:       string;
   title:     string;
@@ -54,6 +56,19 @@ export interface Feature {
   description?:        string;
   /** CSS selector for the feature's primary DOM element */
   selector:            string;
+  /**
+   * The pathname where this feature lives (e.g. "/settings/billing").
+   *
+   * When a tour step targets this feature and the user is on a different
+   * page, the SDK will:
+   *   1. Tell the user it's navigating and why
+   *   2. Call the `router` function passed to EventopAIProvider / init()
+   *   3. Wait for the feature element to appear before showing the step
+   *
+   * Prefer `route` over the legacy `screen` API for React Router and
+   * Next.js apps.
+   */
+  route?:              string;
   /** Additional related selectors for context */
   relatedSelectors?:   Record<string, string>;
   /** Auto-advance when this event fires */
@@ -67,7 +82,8 @@ export interface Feature {
   flow?:               FlowStep[];
   /**
    * Screen this feature lives on.
-   * SDK navigates to the correct screen before showing the step.
+   * @deprecated Prefer `route` + the `router` prop on EventopAIProvider.
+   *             `screen` is still supported for backward compatibility.
    */
   screen?:             Screen;
 }
@@ -119,6 +135,27 @@ export interface Config {
   suggestions?:   string[];
   theme?:         Theme;
   position?:      Position;
+  /**
+   * Navigation function the SDK calls when a tour step lives on a different page.
+   *
+   * Pass your framework's navigate/push function here:
+   *
+   * React Router v6:
+   *   const navigate = useNavigate();
+   *   <EventopAIProvider router={navigate} ...>
+   *
+   * Next.js App Router:
+   *   const router = useRouter();
+   *   <EventopAIProvider router={(path) => router.push(path)} ...>
+   *
+   * Next.js Pages Router:
+   *   const router = useRouter();
+   *   <EventopAIProvider router={(path) => router.push(path)} ...>
+   *
+   * If omitted, the SDK falls back to window.history.pushState + popstate
+   * (best-effort; works for simple SPAs that listen to popstate).
+   */
+  router?:        (path: string) => void | Promise<void>;
   /** @internal — set by provider factories */
   _providerName?: string;
 }
@@ -174,16 +211,6 @@ export interface Providers {
   /**
    * Custom provider — proxy through your own server.
    * Recommended for production. Keeps API keys off the browser.
-   *
-   * @example
-   * providers.custom(async ({ systemPrompt, messages }) => {
-   *   const res = await fetch('/api/guide', {
-   *     method: 'POST',
-   *     headers: { 'Content-Type': 'application/json' },
-   *     body: JSON.stringify({ systemPrompt, messages }),
-   *   });
-   *   return res.json();
-   * })
    */
   custom(fn: ProviderFn): ProviderFn;
 }
@@ -215,40 +242,22 @@ export interface EventopSDK {
    */
   runTour(steps: Step[], options?: { showProgress?: boolean; waitTimeout?: number }): Promise<void>;
 
-  /**
-   * Hard cancel the active tour.
-   * Clears all pause state — no resume available after this.
-   */
+  /** Hard cancel the active tour. */
   cancelTour(): void;
 
-  /**
-   * Resume a paused tour from where the user left off.
-   * Called automatically by the resume button in the chat panel.
-   */
+  /** Resume a paused tour from where the user left off. */
   resumeTour(): void;
 
-  /**
-   * Advance the current tour step programmatically.
-   * Call after async validation succeeds.
-   *
-   * @example
-   * const ok = await validateEmail(email);
-   * if (ok) EventopAI.stepComplete();
-   */
+  /** Advance the current tour step programmatically. */
   stepComplete(): void;
 
-  /**
-   * Block tour advancement and show an inline error in the current step tooltip.
-   *
-   * @example
-   * EventopAI.stepFail('Please enter a valid email address.');
-   */
+  /** Block tour advancement and show an inline error. */
   stepFail(message: string): void;
 
   /** Returns true if a tour is currently running */
   isActive(): boolean;
 
-  /** Returns true if a tour is paused (cancelled but resumable) */
+  /** Returns true if a tour is paused */
   isPaused(): boolean;
 
   /** @internal — used by the React/Vue packages to sync live feature registry */
@@ -257,3 +266,77 @@ export interface EventopSDK {
 
 declare const EventopAI: EventopSDK;
 export default EventopAI;
+
+
+// ─── React bindings ───────────────────────────────────────────────────────────
+
+export interface EventopAIProviderProps {
+  children:        React.ReactNode;
+  provider:        ProviderFn;
+  appName:         string;
+  assistantName?:  string;
+  suggestions?:    string[];
+  theme?:          Theme;
+  position?:       Position;
+  /**
+   * Navigation function for cross-page tours.
+   *
+   * React Router v6:   pass `useNavigate()` directly
+   * Next.js App Router: pass `(path) => useRouter().push(path)`
+   * Next.js Pages Router: pass `(path) => useRouter().push(path)`
+   */
+  router?:         (path: string) => void | Promise<void>;
+}
+
+export interface EventopTargetProps {
+  children:         React.ReactElement;
+  id:               string;
+  name:             string;
+  description?:     string;
+  /**
+   * The pathname where this feature lives (e.g. "/settings/billing").
+   * The SDK auto-navigates here when a tour step targets this feature
+   * and the user is on a different page.
+   */
+  route?:           string;
+  navigate?:        () => void | Promise<void>;
+  navigateWaitFor?: string;
+  advanceOn?:       Omit<AdvanceOn, 'selector'>;
+  waitFor?:         string;
+}
+
+export interface EventopStepProps {
+  children:    React.ReactElement;
+  feature?:    string;
+  index:       number;
+  parentStep?: number;
+  waitFor?:    string;
+  advanceOn?:  Omit<AdvanceOn, 'selector'>;
+}
+
+export interface UseEventopAIReturn {
+  open():              void;
+  close():             void;
+  cancelTour():        void;
+  resumeTour():        void;
+  isActive():          boolean;
+  isPaused():          boolean;
+  stepComplete():      void;
+  stepFail(msg: string): void;
+  runTour(steps: Step[]): Promise<void>;
+}
+
+export interface UseEventopTourReturn {
+  isActive: boolean;
+  isPaused: boolean;
+  resume():  void;
+  cancel():  void;
+  open():    void;
+  close():   void;
+}
+
+export declare function EventopAIProvider(props: EventopAIProviderProps): JSX.Element;
+export declare function EventopTarget(props: EventopTargetProps): JSX.Element;
+export declare function EventopStep(props: EventopStepProps): JSX.Element;
+export declare function useEventopAI(): UseEventopAIReturn;
+export declare function useEventopTour(): UseEventopTourReturn;
