@@ -1,4 +1,6 @@
-import { useEffect, useRef, Children, cloneElement } from 'react';
+'use client';
+
+import { useEffect, useRef, Children } from 'react';
 import { useRegistry, useFeatureScope } from './context.js';
 
 /**
@@ -6,6 +8,9 @@ import { useRegistry, useFeatureScope } from './context.js';
  *
  * Registers one step in a multi-step flow. Can live anywhere in the tree.
  * Steps self-assemble into order via the `index` prop.
+ *
+ * Uses the same direct DOM attribute injection as EventopTarget — works
+ * with any component regardless of whether it forwards unknown props.
  */
 export function EventopStep({
   children,
@@ -18,7 +23,7 @@ export function EventopStep({
   const registry     = useRegistry();
   const featureScope = useFeatureScope();
   const featureId    = feature || featureScope;
-  const ref          = useRef(null);
+  const wrapperRef   = useRef(null);
 
   if (!featureId) {
     console.warn('[Eventop] <EventopStep> needs either a feature prop or an <EventopTarget> ancestor.');
@@ -33,35 +38,29 @@ export function EventopStep({
   useEffect(() => {
     if (!featureId || index == null) return;
 
+    // Inject attribute directly onto the first real child DOM element
+    const firstChild = wrapperRef.current?.firstElementChild;
+    if (firstChild) {
+      firstChild.setAttribute(dataAttr, '');
+    }
+
     registry.registerStep(featureId, index, parentStep ?? null, {
       selector,
       waitFor:   waitFor   || null,
       advanceOn: advanceOn ? { selector, ...advanceOn } : null,
     });
 
-    return () => registry.unregisterStep(featureId, index, parentStep ?? null);
-  }, [featureId, index, parentStep]);
+    return () => {
+      const el = wrapperRef.current?.firstElementChild;
+      if (el) el.removeAttribute(dataAttr);
 
-  const child = Children.only(children);
+      registry.unregisterStep(featureId, index, parentStep ?? null);
+    };
+  }, [featureId, index, parentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  let wrapped;
-  try {
-    wrapped = cloneElement(child, {
-      [dataAttr]: '',
-      ref: (node) => {
-        ref.current = node;
-        const originalRef = child.ref;
-        if (typeof originalRef === 'function') originalRef(node);
-        else if (originalRef && 'current' in originalRef) originalRef.current = node;
-      },
-    });
-  } catch {
-    wrapped = (
-      <span {...{ [dataAttr]: '' }} ref={ref} style={{ display: 'contents' }}>
-        {child}
-      </span>
-    );
-  }
-
-  return wrapped;
+  return (
+    <span ref={wrapperRef} style={{ display: 'contents' }}>
+      {Children.only(children)}
+    </span>
+  );
 }
