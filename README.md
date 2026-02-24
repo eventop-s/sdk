@@ -304,6 +304,33 @@ that lives on a different page.
 Features that share the page where tours are typically started don't need `route`.
 Only add it to features on other pages.
 
+### How the registry stays aware of every page
+
+When you navigate away from a page, its `EventopTarget` components unmount. Rather
+than removing them from the registry entirely, the SDK downgrades them to **ghost
+entries** — the metadata (`id`, `name`, `description`, `route`) is kept, only the
+live DOM selector is nulled out.
+
+```
+EventopTarget mounts   → full entry  { id, name, description, route, selector }
+EventopTarget unmounts → ghost entry { id, name, description, route, selector: null }
+EventopTarget remounts → full entry  (selector restored)
+```
+
+This means the AI system prompt always contains every feature the app has ever
+rendered, regardless of which page you're currently on. The AI can plan cross-page
+tours from any starting point without you doing anything extra.
+
+The selector is resolved lazily — after navigation completes and the target page's
+components remount, the ghost upgrades back to a full entry and the tour picks up
+the correct selector just before showing the step.
+
+> **Note on `id` stability** — ghost entries accumulate for the lifetime of the
+> session, so `id` should identify a **UI capability**, not a data record.
+> Wrapping dynamic list items with unique ids (e.g. `` `project-${p.id}` ``)
+> will create an unbounded number of ghosts. Use a single `EventopTarget` for
+> the repeating pattern instead.
+
 ---
 
 ## Multi-step flows

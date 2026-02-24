@@ -50,7 +50,7 @@ export function createFeatureRegistry() {
   }
 
   function unregisterFeature(id) {
-    features.delete(id);
+    features.set(id, { ...existing, selector: null, advanceOn: null, waitFor: null, _ghost: true });
     flowSteps.delete(id);
     notify();
   }
