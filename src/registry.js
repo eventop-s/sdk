@@ -1,18 +1,41 @@
 /**
  * FeatureRegistry
  *
- * The live map of everything currently mounted in the React tree.
+ * The live map of everything registered in the React tree — both mounted
+ * (full entries) and unmounted (ghost entries).
  *
- * Features   — registered by EventopTarget
- * Flow steps — registered by EventopStep, attached to a feature by id
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │  Full entry  — component is currently mounted                       │
+ * │  { id, name, description, route, selector, ... }                   │
+ * │                                                                     │
+ * │  Ghost entry — component has unmounted (navigated away)             │
+ * │  { id, name, description, route, selector: null, _ghost: true }    │
+ * └─────────────────────────────────────────────────────────────────────┘
  *
- * Both features and steps can live anywhere in the component tree.
- * They don't need to be co-located. An EventopStep just needs to know
- * which feature id it belongs to.
+ * Why ghosts?
+ *
+ *   The AI system prompt is built from the registry snapshot. Without ghosts,
+ *   features on other pages don't exist in the snapshot when the user is
+ *   elsewhere — the AI can't pick them, so cross-page tours never start.
+ *
+ *   With ghosts, every feature the app has ever rendered stays in the
+ *   snapshot permanently. The AI always has the full picture. The tour
+ *   runner already resolves selectors lazily (after navigation), so a
+ *   null selector on a ghost is fine — it gets filled in at show-time
+ *   once the component mounts on the target page.
+ *
+ * Lifecycle:
+ *
+ *   EventopTarget mounts   → registerFeature()  → full entry
+ *   EventopTarget unmounts → unregisterFeature() → ghost entry (metadata kept)
+ *   EventopTarget remounts → registerFeature()  → full entry again (selector restored)
+ *
+ * Flow steps follow the same pattern — they're pruned on unmount but the
+ * parent feature ghost keeps the feature visible to the AI.
  *
  * Nested steps:
- *   Steps can themselves have children steps (sub-steps) by passing
- *   a parentStep prop to EventopStep. This lets you model flows like:
+ *   Steps can have children steps (sub-steps) by passing a parentStep prop.
+ *   This lets you model flows like:
  *
  *   Feature: "Create styled text"
  *     Step 0: Click Add Text
@@ -21,17 +44,10 @@
  *       Step 1.1: Open font picker       ← parentStep: 1, index: 1
  *       Step 1.2: Choose a font          ← parentStep: 1, index: 2
  *     Step 2: Click Done
- *
- *   In practice most flows are flat (index 0, 1, 2, 3...) but the
- *   registry supports nested depth for complex interactions.
- *
- * Route awareness:
- *   Features can declare the pathname they live on via `route`.
- *   The snapshot() includes this so the SDK core can navigate
- *   automatically when a tour step targets a feature on a different page.
  */
 export function createFeatureRegistry() {
   // Map<featureId, featureData>
+  // Values are either full entries or ghost entries (_ghost: true)
   const features  = new Map();
   // Map<featureId, Map<stepKey, stepData>>
   const flowSteps = new Map();
@@ -39,21 +55,47 @@ export function createFeatureRegistry() {
   const listeners = new Set();
   function notify() { listeners.forEach(fn => fn()); }
 
+
   // ── Feature registration ─────────────────────────────────────────────────
 
   function registerFeature(feature) {
+    // Restore a ghost or create a fresh full entry.
+    // Always overwrite so a remount gets the latest selector.
     features.set(feature.id, {
       ...feature,
+      _ghost:        false,
       _registeredAt: Date.now(),
     });
     notify();
   }
 
   function unregisterFeature(id) {
-    features.set(id, { ...existing, selector: null, advanceOn: null, waitFor: null, _ghost: true });
+    if (!features.has(id)) return;
+
+    // Downgrade to ghost — keep all metadata, null out the live selector.
+    // Flow steps are pruned separately (their DOM elements are gone too).
+    const feature = features.get(id);
+    features.set(id, {
+      id:               feature.id,
+      name:             feature.name,
+      description:      feature.description,
+      route:            feature.route            || null,
+      navigate:         feature.navigate         || null,
+      navigateWaitFor:  feature.navigateWaitFor  || null,
+      _registeredAt:    feature._registeredAt,
+      selector:         null,
+      advanceOn:        null,
+      waitFor:          null,
+      _ghost:           true,
+    });
+
+    // Prune flow steps — their selectors are dead too.
+    // They'll re-register when the component remounts on the target page.
     flowSteps.delete(id);
+
     notify();
   }
+
 
   // ── Step registration ────────────────────────────────────────────────────
 
@@ -80,6 +122,7 @@ export function createFeatureRegistry() {
     notify();
   }
 
+
   // ── Snapshot ─────────────────────────────────────────────────────────────
 
   function buildFlow(featureId) {
@@ -105,31 +148,51 @@ export function createFeatureRegistry() {
   }
 
   /**
-   * Returns the live feature array in the format the SDK core expects.
+   * Returns the full feature array — both live and ghost entries.
    *
-   * `route` is now included in every feature entry so the core can detect
-   * when navigation is needed before showing a step.
+   * Ghost entries have selector: null. The SDK core handles this correctly:
+   *   - The AI system prompt uses name/description/route (always present)
+   *   - The tour runner resolves the selector lazily after navigation,
+   *     at which point the component has remounted and re-registered
+   *
+   * screen.check() returns false for ghosts so the SDK knows navigation
+   * is needed before showing the step.
    */
   function snapshot() {
     return Array.from(features.values()).map(feature => {
-      const flow = buildFlow(feature.id);
+      const flow    = buildFlow(feature.id);
+      const isGhost = feature._ghost === true;
+
       return {
         id:          feature.id,
         name:        feature.name,
         description: feature.description,
-        selector:    feature.selector,
+        selector:    feature.selector  || null,
         route:       feature.route     || null,
         advanceOn:   feature.advanceOn || null,
         waitFor:     feature.waitFor   || null,
+        _ghost:      isGhost,
         ...(flow ? { flow } : {}),
         screen: {
           id:       feature.id,
-          check:    () => features.has(feature.id),
-          navigate: feature.navigate || null,
+          // Ghost entries always fail the check → SDK knows to navigate
+          check:    () => features.get(feature.id)?._ghost !== true,
+          navigate: feature.navigate        || null,
           waitFor:  feature.navigateWaitFor || feature.selector || null,
         },
       };
     });
+  }
+
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Returns true only for fully mounted (non-ghost) features.
+   */
+  function isRegistered(id) {
+    const f = features.get(id);
+    return !!f && !f._ghost;
   }
 
   return {
@@ -138,7 +201,7 @@ export function createFeatureRegistry() {
     registerStep,
     unregisterStep,
     snapshot,
-    isRegistered: (id) => features.has(id),
+    isRegistered,
     subscribe: (fn) => {
       listeners.add(fn);
       return () => listeners.delete(fn);
