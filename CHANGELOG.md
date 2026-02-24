@@ -1,3 +1,10 @@
+## v1.2.14 — 2026-02-24
+
+### Bug Fixes
+- fix: improve AI responses for unmatched and cross-page features (`c7ad4b4`)
+
+---
+
 # Changelog
 
 ## v1.2.13 — 2026-02-24
