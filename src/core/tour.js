@@ -1,5 +1,6 @@
 // Loads Shepherd.js, builds + runs tours, wires up advanceOn listeners,
 // progress indicators, pause/resume, and step-level error display.
+// ENHANCED: Adds animated ring light effect to highlighted elements.
 
 import * as state from './state.js';
 import { expandFlowSteps } from './flow.js';
@@ -27,6 +28,60 @@ function loadScript(src) {
 export async function ensureShepherd() {
   if (typeof Shepherd !== 'undefined') return;
   await loadScript(SHEPHERD_JS);
+}
+
+// ─── Highlight management ────────────────────────────────────────────────────
+
+/**
+ * Applies the ring light animation to an element.
+ * 
+ * @param {HTMLElement} el 
+ * @param {string} [style='default'] - 'default' | 'hard' | 'subtle'
+ */
+export function applyHighlight(el, style = 'default') {
+  if (!el) return;
+  
+  // Set CSS variables for accent color parsing in RGB format
+  const accentColor = getComputedStyle(el).getPropertyValue('--sai-accent') || '#e94560';
+  const rgb = hexToRgb(accentColor.trim());
+  if (rgb) {
+    el.style.setProperty('--sai-accent-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+  }
+  
+  el.classList.add('sai-highlighted');
+  
+  if (style === 'hard') {
+    el.classList.add('sai-highlight-hard');
+  } else if (style === 'subtle') {
+    el.classList.add('sai-highlight-subtle');
+  }
+  
+  // Scroll into view with extra padding
+  if (el.scrollIntoView) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+/**
+ * Removes the ring light animation from an element.
+ */
+export function removeHighlight(el) {
+  if (!el) return;
+  el.classList.remove('sai-highlighted', 'sai-highlight-hard', 'sai-highlight-subtle');
+}
+
+/**
+ * Converts hex color to RGB object.
+ * @param {string} hex 
+ * @returns {object|null}
+ */
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
 }
 
 // ─── Feature-map merge ────────────────────────────────────────────────────────
@@ -61,6 +116,7 @@ export function mergeWithFeature(step) {
  *   1. Cross-page navigation (route prop) with automatic waiting
  *   2. Legacy screen navigation (screen.navigate)
  *   3. Element waiting (waitFor prop)
+ *   4. Ring light animation application
  *
  * @param {object} step
  * @param {number} waitTimeout
@@ -84,6 +140,11 @@ function makeBeforeShowPromise(step, waitTimeout) {
         } catch (_) { /* non-fatal */ }
 
         await waitForElement(postNavMerge.selector, waitTimeout);
+        
+        // Apply ring light animation to the element
+        const el = document.querySelector(postNavMerge.selector);
+        if (el) applyHighlight(el, step._highlightStyle || 'default');
+        
         return;
       }
     }
@@ -94,6 +155,12 @@ function makeBeforeShowPromise(step, waitTimeout) {
 
     if (freshMerged.waitFor) {
       await waitForElement(freshMerged.waitFor, waitTimeout);
+    }
+    
+    // Apply ring light animation to the main selector
+    if (freshMerged.selector) {
+      const el = document.querySelector(freshMerged.selector);
+      if (el) applyHighlight(el, step._highlightStyle || 'default');
     }
   })();
 }
@@ -146,11 +213,13 @@ function addProgressIndicator(shepherdStep, index, total) {
 
 /**
  * Starts a Shepherd tour from the given steps array.
+ * ENHANCED: Applies ring light animations to highlighted elements.
  *
  * @param {Array}  steps
  * @param {object} [options]
  * @param {boolean} [options.showProgress=true]
  * @param {number}  [options.waitTimeout=8000]
+ * @param {string}  [options.highlightStyle='default'] - 'default' | 'hard' | 'subtle'
  */
 export async function runTour(steps, options = {}) {
   await ensureShepherd();
@@ -161,9 +230,16 @@ export async function runTour(steps, options = {}) {
 
   if (!steps?.length) return;
 
-  const { showProgress = true, waitTimeout = 8000 } = options;
+  const { 
+    showProgress = true, 
+    waitTimeout = 8000,
+    highlightStyle = 'default' 
+  } = options;
 
-  const mergedSteps = steps.map(mergeWithFeature);
+  const mergedSteps = steps.map(step => ({
+    ...mergeWithFeature(step),
+    _highlightStyle: highlightStyle
+  }));
 
   // Legacy: navigate to the correct screen for the first step
   const firstFeature = state.config?.features?.find(f => f.id === mergedSteps[0]?.id);
@@ -218,6 +294,14 @@ export async function runTour(steps, options = {}) {
 
     step._shepherdRef = shepherdStep;
     shepherdStep._isLast = isLast;
+    
+    // Clean up highlight on hide
+    shepherdStep.on('hide', () => {
+      if (step.selector) {
+        const el = document.querySelector(step.selector);
+        if (el) removeHighlight(el);
+      }
+    });
 
     if (hasAuto) wireAdvanceOn(shepherdStep, step.advanceOn, tour);
     if (showProgress && expandedSteps.length > 1) {
@@ -226,6 +310,10 @@ export async function runTour(steps, options = {}) {
   });
 
   tour.on('complete', () => {
+    // Clean up all highlights
+    document.querySelectorAll('.sai-highlighted').forEach(el => {
+      removeHighlight(el);
+    });
     state.runAndClearCleanups();
     state.setPausedSteps(null);
     state.setPausedIndex(0);
@@ -238,6 +326,11 @@ export async function runTour(steps, options = {}) {
     const currentIdx    = currentStepEl
       ? expandedSteps.findIndex(s => s.id === currentStepEl.id)
       : 0;
+
+    // Clean up all highlights
+    document.querySelectorAll('.sai-highlighted').forEach(el => {
+      removeHighlight(el);
+    });
 
     state.runAndClearCleanups();
     state.setPausedSteps(expandedSteps);

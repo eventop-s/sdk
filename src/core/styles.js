@@ -37,6 +37,71 @@ export function injectStyles(theme, pos) {
   style.textContent = `
     #sai-trigger, #sai-panel { ${buildCSSVars(theme)} }
 
+    /* ── Ring Light Animation ── */
+    @keyframes sai-ring-pulse {
+      0% {
+        box-shadow: 
+          0 0 0 0 rgba(var(--sai-accent-rgb), 0.7),
+          0 0 0 0 rgba(var(--sai-accent-rgb), 0.5),
+          0 0 0 0 rgba(var(--sai-accent-rgb), 0.3);
+      }
+      50% {
+        box-shadow: 
+          0 0 0 8px rgba(var(--sai-accent-rgb), 0),
+          0 0 0 16px rgba(var(--sai-accent-rgb), 0.3),
+          0 0 0 24px rgba(var(--sai-accent-rgb), 0);
+      }
+      100% {
+        box-shadow: 
+          0 0 0 16px rgba(var(--sai-accent-rgb), 0),
+          0 0 0 32px rgba(var(--sai-accent-rgb), 0),
+          0 0 0 48px rgba(var(--sai-accent-rgb), 0);
+      }
+    }
+
+    @keyframes sai-ring-pulse-hard {
+      0% {
+        box-shadow: 
+          inset 0 0 0 2px var(--sai-accent),
+          0 0 0 3px var(--sai-accent),
+          0 0 20px var(--sai-accent);
+      }
+      50% {
+        box-shadow: 
+          inset 0 0 0 2px var(--sai-accent),
+          0 0 0 8px var(--sai-accent),
+          0 0 40px var(--sai-accent);
+      }
+      100% {
+        box-shadow: 
+          inset 0 0 0 2px var(--sai-accent),
+          0 0 0 3px var(--sai-accent),
+          0 0 20px var(--sai-accent);
+      }
+      }
+
+    @keyframes sai-element-highlight {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.15); }
+      100% { filter: brightness(1); }
+    }
+
+    /* Highlighted element styles */
+    .sai-highlighted {
+      position: relative !important;
+      animation: sai-ring-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+      z-index: 99997 !important;
+    }
+
+    .sai-highlighted.sai-highlight-hard {
+      animation: sai-ring-pulse-hard 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+    }
+
+    .sai-highlighted.sai-highlight-subtle {
+      animation: sai-element-highlight 2s ease-in-out infinite !important;
+      filter: drop-shadow(0 0 8px var(--sai-accent)) !important;
+    }
+
     /* ── Trigger ── */
     #sai-trigger {
       position: fixed; ${triggerCSS};
