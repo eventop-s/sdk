@@ -1,3 +1,10 @@
+## v1.3.0 — 2026-02-27
+
+### Features
+- feat: add an animated ring light effect to highlighted elements - makes it much easier for users to spot which element they need to interact with (`ddad285`)
+
+---
+
 ## v1.2.15 — 2026-02-24
 
 ### Other
